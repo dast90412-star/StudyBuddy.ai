@@ -3,6 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <script>
+        (function() {
+            try {
+                var host = location.hostname;
+                if (location.protocol !== 'https:' && host !== 'localhost' && host !== '127.0.0.1' && host.indexOf('::1') === -1 && host !== '') {
+                    var httpsURL = 'https://' + location.host + location.pathname + location.search + location.hash;
+                    location.replace(httpsURL);
+                }
+            } catch (e) {
+                console.warn('HTTPS redirect failed', e);
+            }
+        })();
+    </script>
     <title>StudyBuddy</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
