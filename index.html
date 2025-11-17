@@ -49,8 +49,14 @@
         </div>
 
         <!-- User ID Display -->
-        <div id="userIdDisplay" class="text-center text-xs text-slate-500 font-mono break-all bg-slate-700 p-2 rounded-lg">
-            User ID: Loading...
+        <div class="flex items-center justify-between gap-2">
+            <div id="userIdDisplay" class="text-xs text-slate-500 font-mono break-all bg-slate-700 p-2 rounded-lg">
+                Not signed in
+            </div>
+            <div class="flex gap-2">
+                <button id="authBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg">Login / Sign up</button>
+                <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hidden">Logout</button>
+            </div>
         </div>
 
         <!-- Input Section -->
@@ -125,5 +131,33 @@
     <!-- External JavaScript File -->
     <script type="module" src="om.py"></script>
     <script type="module" src="script.js"></script>
+    <!-- Auth modal -->
+    <div id="authModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-slate-800 p-6 rounded-lg max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-teal-400">Account</h3>
+                <button id="closeAuth" class="text-slate-300">✕</button>
+            </div>
+            <div class="space-y-4">
+                <div class="flex space-x-2">
+                    <button id="showLogin" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 px-3 rounded">Login</button>
+                    <button id="showSignup" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 px-3 rounded">Sign up</button>
+                </div>
+                <form id="loginForm" class="space-y-3">
+                    <input id="loginEmail" class="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-slate-200" placeholder="Email or username">
+                    <input id="loginPassword" type="password" class="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-slate-200" placeholder="Password">
+                    <button id="loginSubmit" type="button" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded">Login</button>
+                </form>
+                <form id="signupForm" class="space-y-3 hidden">
+                    <input id="signupEmail" class="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-slate-200" placeholder="Email or username">
+                    <input id="signupPassword" type="password" class="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-slate-200" placeholder="Password">
+                    <input id="signupConfirm" type="password" class="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-slate-200" placeholder="Confirm password">
+                    <button id="signupSubmit" type="button" class="w-full bg-teal-500 hover:bg-teal-600 text-white py-2 rounded">Create account</button>
+                </form>
+                <div id="authMessage" class="text-sm text-rose-400"></div>
+                <p class="text-xs text-slate-400">Note: this demo stores credentials locally in your browser (localStorage). For production, use a secure server-side authentication system.</p>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

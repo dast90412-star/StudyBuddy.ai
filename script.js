@@ -14,14 +14,31 @@ const KEY_ASSIGNMENTS = 'sb_assignments';
 const KEY_EXAMS = 'sb_exams';
 const KEY_SCHEDULE = 'sb_schedule';
 const KEY_XP = 'sb_xp';
+const USERS_DATA_KEY = 'sb_user_data'; // mapping email -> {subjects, assignments, exams, schedule, xp}
+const CUR_USER_KEY = 'sb_currentUser';
 
 function saveAll() {
     try {
-        localStorage.setItem(KEY_SUBJECTS, JSON.stringify(subjects));
-        localStorage.setItem(KEY_ASSIGNMENTS, JSON.stringify(assignments));
-        localStorage.setItem(KEY_EXAMS, JSON.stringify(exams));
-        localStorage.setItem(KEY_SCHEDULE, JSON.stringify(scheduleTasks));
-        localStorage.setItem(KEY_XP, String(xp));
+        const cur = localStorage.getItem(CUR_USER_KEY);
+        if (cur) {
+            // save under user-scoped storage
+            const usersData = JSON.parse(localStorage.getItem(USERS_DATA_KEY) || '{}');
+            usersData[cur] = {
+                subjects: subjects,
+                assignments: assignments,
+                exams: exams,
+                schedule: scheduleTasks,
+                xp: xp
+            };
+            localStorage.setItem(USERS_DATA_KEY, JSON.stringify(usersData));
+        } else {
+            // anonymous/global storage
+            localStorage.setItem(KEY_SUBJECTS, JSON.stringify(subjects));
+            localStorage.setItem(KEY_ASSIGNMENTS, JSON.stringify(assignments));
+            localStorage.setItem(KEY_EXAMS, JSON.stringify(exams));
+            localStorage.setItem(KEY_SCHEDULE, JSON.stringify(scheduleTasks));
+            localStorage.setItem(KEY_XP, String(xp));
+        }
     } catch (e) {
         console.warn('Failed to save to localStorage', e);
     }
@@ -29,16 +46,35 @@ function saveAll() {
 
 function loadAll() {
     try {
-        const s = localStorage.getItem(KEY_SUBJECTS);
-        const a = localStorage.getItem(KEY_ASSIGNMENTS);
-        const e = localStorage.getItem(KEY_EXAMS);
-        const sch = localStorage.getItem(KEY_SCHEDULE);
-        const x = localStorage.getItem(KEY_XP);
-        if (s) subjects = JSON.parse(s);
-        if (a) assignments = JSON.parse(a);
-        if (e) exams = JSON.parse(e);
-        if (sch) scheduleTasks = JSON.parse(sch);
-        if (x) xp = parseInt(x,10) || 0;
+        const cur = localStorage.getItem(CUR_USER_KEY);
+        if (cur) {
+            const usersData = JSON.parse(localStorage.getItem(USERS_DATA_KEY) || '{}');
+            const data = usersData[cur];
+            if (data) {
+                subjects = data.subjects || [];
+                assignments = data.assignments || [];
+                exams = data.exams || [];
+                scheduleTasks = data.schedule || [];
+                xp = parseInt(data.xp,10) || 0;
+            } else {
+                subjects = [];
+                assignments = [];
+                exams = [];
+                scheduleTasks = [];
+                xp = 0;
+            }
+        } else {
+            const s = localStorage.getItem(KEY_SUBJECTS);
+            const a = localStorage.getItem(KEY_ASSIGNMENTS);
+            const e = localStorage.getItem(KEY_EXAMS);
+            const sch = localStorage.getItem(KEY_SCHEDULE);
+            const x = localStorage.getItem(KEY_XP);
+            if (s) subjects = JSON.parse(s);
+            if (a) assignments = JSON.parse(a);
+            if (e) exams = JSON.parse(e);
+            if (sch) scheduleTasks = JSON.parse(sch);
+            if (x) xp = parseInt(x,10) || 0;
+        }
     } catch (err) {
         console.warn('Failed to load from localStorage', err);
     }
@@ -475,3 +511,152 @@ function generateScheduleHandler(){
 // wire the Generate button to the named handler (script is loaded at end of page)
 const genBtn = document.getElementById('generateScheduleBtn');
 if (genBtn) genBtn.addEventListener('click', generateScheduleHandler);
+
+// ----------------------
+// Client-side auth demo
+// ----------------------
+
+const USERS_KEY = 'sb_users';
+
+function toHex(buffer){
+    return Array.from(new Uint8Array(buffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function hashPassword(password){
+    const enc = new TextEncoder().encode(password);
+    const digest = await crypto.subtle.digest('SHA-256', enc);
+    return toHex(digest);
+}
+
+function loadUsers(){
+    try { return JSON.parse(localStorage.getItem(USERS_KEY) || '{}'); } catch(e){ return {}; }
+}
+function saveUsers(u){
+    try { localStorage.setItem(USERS_KEY, JSON.stringify(u)); } catch(e){ console.warn('Failed saving users', e); }
+}
+
+function setCurrentUser(email){
+    try { localStorage.setItem(CUR_USER_KEY, email); } catch(e){}
+    // load user-specific data into the app
+    loadAll();
+    updateSubjectsLists();
+    updateAssignmentsList();
+    updateExamsList();
+    updateXPDisplay();
+    updateAuthUI();
+}
+function clearCurrentUser(){
+    try { localStorage.removeItem(CUR_USER_KEY); } catch(e){}
+    updateAuthUI();
+}
+
+async function signupHandler(){
+    const email = (document.getElementById('signupEmail').value || '').trim();
+    const pass = document.getElementById('signupPassword').value || '';
+    const conf = document.getElementById('signupConfirm').value || '';
+    const msg = document.getElementById('authMessage');
+    msg.textContent = '';
+    if (!email || !pass) { msg.textContent = 'Please provide email and password.'; return; }
+    if (pass !== conf) { msg.textContent = 'Passwords do not match.'; return; }
+    const users = loadUsers();
+    if (users[email]) { msg.textContent = 'An account with that email already exists.'; return; }
+    const h = await hashPassword(pass);
+    users[email] = { passwordHash: h, created: Date.now() };
+    saveUsers(users);
+    // create empty user-scoped data so this new account starts fresh (resets progress)
+    try {
+        const usersData = JSON.parse(localStorage.getItem(USERS_DATA_KEY) || '{}');
+        usersData[email] = { subjects: [], assignments: [], exams: [], schedule: [], xp: 0 };
+        localStorage.setItem(USERS_DATA_KEY, JSON.stringify(usersData));
+    } catch(e) { console.warn('Failed to initialize user data', e); }
+    setCurrentUser(email);
+    msg.style.color = 'lightgreen';
+    msg.textContent = 'Account created and signed in.';
+    setTimeout(()=>{ closeAuthModal(); msg.style.color=''; msg.textContent=''; }, 900);
+}
+
+async function loginHandler(){
+    const email = (document.getElementById('loginEmail').value || '').trim();
+    const pass = document.getElementById('loginPassword').value || '';
+    const msg = document.getElementById('authMessage');
+    msg.textContent = '';
+    if (!email || !pass) { msg.textContent = 'Please provide email and password.'; return; }
+    const users = loadUsers();
+    const entry = users[email];
+    if (!entry) { msg.textContent = 'No account found for that email.'; return; }
+    const h = await hashPassword(pass);
+    if (h !== entry.passwordHash) { msg.textContent = 'Incorrect password.'; return; }
+    setCurrentUser(email);
+    msg.style.color = 'lightgreen';
+    msg.textContent = 'Signed in.';
+    setTimeout(()=>{ closeAuthModal(); msg.style.color=''; msg.textContent=''; }, 700);
+}
+
+function logoutHandler(){
+    // save current progress into the current user's storage before logging out
+    try { saveAll(); } catch(e){}
+    clearCurrentUser();
+}
+
+function openAuthModal(){
+    const modal = document.getElementById('authModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    showLoginView();
+}
+function closeAuthModal(){
+    const modal = document.getElementById('authModal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+}
+
+function showLoginView(){
+    document.getElementById('loginForm').classList.remove('hidden');
+    document.getElementById('signupForm').classList.add('hidden');
+    document.getElementById('authMessage').textContent = '';
+}
+function showSignupView(){
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('signupForm').classList.remove('hidden');
+    document.getElementById('authMessage').textContent = '';
+}
+
+function updateAuthUI(){
+    const display = document.getElementById('userIdDisplay');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const cur = localStorage.getItem(CUR_USER_KEY);
+    if (cur) {
+        if (display) display.textContent = `Signed in: ${cur}`;
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
+    } else {
+        if (display) display.textContent = 'Not signed in';
+        if (logoutBtn) logoutBtn.classList.add('hidden');
+    }
+}
+
+// Wire up auth controls
+document.addEventListener('DOMContentLoaded', ()=>{
+    const authBtn = document.getElementById('authBtn');
+    const closeBtn = document.getElementById('closeAuth');
+    const showLogin = document.getElementById('showLogin');
+    const showSignup = document.getElementById('showSignup');
+    const loginSubmit = document.getElementById('loginSubmit');
+    const signupSubmit = document.getElementById('signupSubmit');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    if (authBtn) authBtn.addEventListener('click', openAuthModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeAuthModal);
+    if (showLogin) showLogin.addEventListener('click', showLoginView);
+    if (showSignup) showSignup.addEventListener('click', showSignupView);
+    if (loginSubmit) loginSubmit.addEventListener('click', loginHandler);
+    if (signupSubmit) signupSubmit.addEventListener('click', signupHandler);
+    if (logoutBtn) logoutBtn.addEventListener('click', logoutHandler);
+
+    // close modal by clicking outside content
+    const modal = document.getElementById('authModal');
+    if (modal) modal.addEventListener('click', (e)=>{ if (e.target === modal) closeAuthModal(); });
+
+    updateAuthUI();
+});
